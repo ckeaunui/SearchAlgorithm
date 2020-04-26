@@ -1,0 +1,62 @@
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer
+from collections import Counter
+from nltk.stem import WordNetLemmatizer
+from num2words import num2words
+import nltk
+
+from nltk.corpus import stopwords
+
+
+import os
+import string
+import numpy as np
+import copy
+import pandas as pd
+import pickle
+import re
+import math
+
+
+def preprocess(data):
+    data['Transcript'] = data['Transcript'].str.lower()
+    stopwords = stopwords.words('english')
+    non_sep_junk = '!@#$%^*()_+~=`|}{\":?><\][\';/.,'
+    sep_junk = '-()/–&\\'
+    lemmer = WordNetLemmatizer()
+
+    for transcript in range(len(data['Transcript'])):
+    #remove junk
+
+        #remove characters and replace with a space
+        for i in sep_junk:
+            if i in data['Transcript'][transcript]:
+                data['Transcript'][transcript] = data['Transcript'][transcript].replace(i, ' ')
+
+        #delete characters with no space added
+        for i in non_sep_junk:
+            if i in data['Transcript'][transcript]:
+                data['Transcript'][transcript] = data['Transcript'][transcript].replace(i, '')
+
+    #stemming, stopwords, and number replacing
+        replacer = ''
+
+        print(transcript)
+        for word in data['Transcript'][transcript].split():
+
+            #stopwords
+            if word not in stopwords:
+
+                #replacing numbers
+                try:
+                    word = num2words(int(word))
+                except:
+                    x = 0
+
+                #lemmanize
+                replacer += ' ' + lemmer.lemmatize(word)
+
+        data['Transcript'][transcript] = replacer
+
+    print(data['Transcript'])
+    return data
