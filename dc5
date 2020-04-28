@@ -119,15 +119,14 @@ print(total_vocab)
 
 #calculating tf_idf
 doc = 0
-
 tf_idf = {}
 
 for i in range(N):
 
     tokens = data['Transcript'][i]
 
-    counter = Counter(tokens + data['Transcript'][i])
-    words_count = len(tokens + data['Transcript'][i])
+    counter = Counter(tokens)
+    words_count = len(tokens)
 
     for token in np.unique(tokens):
         tf = counter[token] / words_count
