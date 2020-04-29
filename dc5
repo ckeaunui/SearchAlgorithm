@@ -1,216 +1,52 @@
-from nltk.tokenize import word_tokenize
-from nltk.stem import PorterStemmer
-from collections import Counter
-from nltk.stem import WordNetLemmatizer
-from num2words import num2words
-import nltk
-
+import tensorflow as tf
+import tensorflow_hub as hub
 import numpy as np
 import pandas as pd
-import math
-
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-from nltk.stem import PorterStemmer
-from collections import Counter
-from num2words import num2words
-
-import nltk
-import os
-import string
-import numpy as np
-import copy
-import pandas as pd
-import pickle
-import re
-import math
 
 
-
-#load in data
 path = '/Users/christiankeaunui/PycharmProjects/DC5/transcripts.txt'
 data = pd.read_csv(path)
+
 data.columns = ['Transcript', 'URL']
+embed = hub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
 
 
-#Process data to remove stopwords, change ints to strings, and lemmanize words
-def preprocess(data):
-    data['Transcript'] = data['Transcript'].str.lower()
-    # stopwords = stopwords.words('english')
-    non_sep_junk = '!@#$%^*()_+~=`|}{\":?><\][\';/.,'
-    sep_junk = '-()/–&\\'
-    lemmer = WordNetLemmatizer()
-
-    for transcript in range(len(data['Transcript'])):
-
-        for i in sep_junk:
-            if i in data['Transcript'][transcript]:
-                data['Transcript'][transcript] = data['Transcript'][transcript].replace(i, ' ')
-
-        for i in non_sep_junk:
-            if i in data['Transcript'][transcript]:
-                data['Transcript'][transcript] = data['Transcript'][transcript].replace(i, '')
-
-        replacer = ''
-
-        for word in data['Transcript'][transcript].split():
-
-             #if word not in stopwords:
-
-                try:
-                    word = num2words(int(word))
-                except:
-                    x = 0
-
-                replacer += ' ' + word #lemmer.lemmatize(word)
-
-        data['Transcript'][transcript] = replacer
-
-    return data
+def take_key(element):
+    return(element[0])
 
 
-#call the preprocessing method to clean data and find the number of documents within data
-data = preprocess(data)
+def cosine_similarity(data, query, results):
 
-N = len(data)
-print(N)
+    similarity = []
+    transcripts = data['Transcript']
 
+    for i in range(len(transcripts)):
 
-#find the frequency of docs
-def doc_freq(word):
-    c = 0
-    try:
-        c = DF[word]
-    except:
-        pass
-    return c
+        temp = []
+        temp.append(query)
+        temp.append(transcripts[i])
 
+        temp_matrix = embed(temp)
 
-#calculate the df value before finding the tf_idf
-DF = {}
+        similarity_matrix = np.inner(temp_matrix, temp_matrix)
+        value = float(similarity_matrix[0][1])
+        similarity.append([value, data['URL'][i]])
 
-for i in range(N):
-    tokens = data['Transcript'][i]
-    for w in tokens.split():
-        try:
-            DF[w].add(i)
-        except:
-            DF[w] = {i}
+    similarity.sort(key=take_key)
+    similarity.reverse()
+    rankings = similarity[:results]
 
-    tokens = data['Transcript'][i]
-    for w in tokens:
-        try:
-            DF[w].add(i)
-        except:
-            DF[w] = {i}
-
-for i in DF:
-    DF[i] = len(DF[i])
-
-print(DF)
-
-total_vocab_size = len(DF)
-print(total_vocab_size)
-
-total_vocab = [x for x in DF]
-print(total_vocab)
+    return rankings
 
 
+query = 'Math'
+result_count = 10
+top_results = cosine_similarity(data, query, result_count)
 
-#calculating tf_idf
-doc = 0
-tf_idf = {}
-
-for i in range(N):
-
-    tokens = data['Transcript'][i]
-
-    counter = Counter(tokens)
-    words_count = len(tokens)
-
-    for token in np.unique(tokens):
-        tf = counter[token] / words_count
-        df = doc_freq(token)
-        idf = np.log((N + 1) / (df + 1))
-
-        tf_idf[doc, token] = tf * idf
-
-    doc += 1
+print('Top Results:')
+for i in range(len(top_results)):
+    print(i+1, ':', top_results[i][1])
 
 
-#find the most relevant terms
-def score_matching(num, query):
-
-    tokens = str(query)
-    query_weights = {}
-
-    for key in tf_idf:
-        print(key)
-        if key[1] in tokens:
-            try:
-                query_weights[key[0]] += tf_idf[key]
-            except:
-                query_weights[key[0]] = tf_idf[key]
-
-    query_weights = sorted(query_weights.items(), key=lambda x: x[1], reverse=True)
-
-    results = []
-    for i in query_weights[:num]:
-        results.append(i[0])
-    return results
-
-
-
-def cosine_sim(a, b):
-    cos_sim = np.dot(a, b)/(np.linalg.norm(a)*np.linalg.norm(b))
-    return cos_sim
-
-
-#vectorize the data
-def gen_vector(tokens):
-    Q = np.zeros((len(total_vocab)))
-
-    counter = Counter(tokens)
-    words_count = len(tokens)
-
-    query_weights = {}
-
-    for token in np.unique(tokens):
-
-        tf = counter[token] / words_count
-        df = doc_freq(token)
-        idf = math.log((N + 1) / (df + 1))
-
-        try:
-            ind = total_vocab.index(token)
-            Q[ind] = tf * idf
-        except:
-            pass
-    return Q
-
-
-D = np.zeros((N, total_vocab_size))
-
-
-#find the most closely related transcript to the query
-def cosine_similarity(k, query):
-    print(query)
-    tokens = word_tokenize(query)
-    print(tokens)
-
-    print("\nQuery:", query)
-    print("")
-    print(tokens)
-
-    d_cosines = []
-    query_vector = gen_vector(tokens)
-
-    for d in D:
-        d_cosines.append(cosine_sim(query_vector, d))
-
-    out = np.array(d_cosines).argsort()[-k:][::-1]
-    return out
-
-
-#testing the code with a query
-cosine_similarity(10, 'good morning everyone')
+#Good: Music, Math, (keep testing more terms)
+#Bad: Computer Science, (keep testing more terms)
